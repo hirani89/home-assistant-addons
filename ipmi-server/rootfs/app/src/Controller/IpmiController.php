@@ -1,4 +1,3 @@
-
 <?php
 
 /**
@@ -51,13 +50,7 @@ class IpmiController
             $info['message'] = $this->anonymizePassword($info['message']);
         }
 
-
-        $response = new JsonResponse($info);
-        $response->setEncodingOptions(
-            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
-        );
-        return $response;
-
+        return new JsonResponse($info, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function command(Request $request): JsonResponse
@@ -67,23 +60,15 @@ class IpmiController
         $ret = $this->runCommand($cmd);
         $done = ($ret !== false);
 
-        $response = new JsonResponse([
+        return new JsonResponse([
             'success' => $done,
             'output' => $done ? $ret : implode("\n", $this->debug)
-        ]);
-        $response->setEncodingOptions(
-            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
-        );
-        return $response;
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function sensors(Request $request): JsonResponse
     {
-        $response = new JsonResponse($this->getSensors($request));
-        $response->setEncodingOptions(
-            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
-        );
-        return $response;
+        return new JsonResponse($this->getSensors($request), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function power_on(Request $request): JsonResponse
@@ -146,13 +131,9 @@ class IpmiController
             }
         }
 
-        $response = new JsonResponse([
+        return new JsonResponse([
             'success' => $done
-        ]);
-        $response->setEncodingOptions(
-            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
-        );
-        return $response;
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     private function runCommand($command, $ignoreErrors = false): bool|string
@@ -177,6 +158,10 @@ class IpmiController
 
                 return false;
             }
+
+            // Sanitize output to handle invalid UTF-8 characters from ipmitool
+            // Some IPMI hardware (especially FRU data) contains invalid UTF-8
+            $output = mb_convert_encoding($output, 'UTF-8', 'UTF-8');
         }
         catch (\Exception $exception) {
             // let's log this error
