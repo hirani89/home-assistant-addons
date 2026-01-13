@@ -161,6 +161,7 @@ class IpmiController
 
             // Sanitize output to handle invalid UTF-8 characters from ipmitool
             // Some IPMI hardware (especially FRU data) contains invalid UTF-8
+            // This re-encodes the string, dropping invalid sequences
             $output = mb_convert_encoding($output, 'UTF-8', 'UTF-8');
         }
         catch (\Exception $exception) {
