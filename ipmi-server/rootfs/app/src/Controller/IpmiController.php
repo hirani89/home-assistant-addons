@@ -1,3 +1,4 @@
+
 <?php
 
 /**
@@ -50,7 +51,13 @@ class IpmiController
             $info['message'] = $this->anonymizePassword($info['message']);
         }
 
-        return new JsonResponse($info, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+
+        $response = new JsonResponse($info);
+        $response->setEncodingOptions(
+            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+        return $response;
+
     }
 
     public function command(Request $request): JsonResponse
@@ -60,15 +67,23 @@ class IpmiController
         $ret = $this->runCommand($cmd);
         $done = ($ret !== false);
 
-        return new JsonResponse([
+        $response = new JsonResponse([
             'success' => $done,
             'output' => $done ? $ret : implode("\n", $this->debug)
-        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        ]);
+        $response->setEncodingOptions(
+            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+        return $response;
     }
 
     public function sensors(Request $request): JsonResponse
     {
-        return new JsonResponse($this->getSensors($request), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        $response = new JsonResponse($this->getSensors($request));
+        $response->setEncodingOptions(
+            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+        return $response;
     }
 
     public function power_on(Request $request): JsonResponse
@@ -131,9 +146,13 @@ class IpmiController
             }
         }
 
-        return new JsonResponse([
+        $response = new JsonResponse([
             'success' => $done
-        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        ]);
+        $response->setEncodingOptions(
+            $response->getEncodingOptions() | JSON_INVALID_UTF8_SUBSTITUTE
+        );
+        return $response;
     }
 
     private function runCommand($command, $ignoreErrors = false): bool|string
