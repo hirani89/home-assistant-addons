@@ -50,7 +50,7 @@ class IpmiController
             $info['message'] = $this->anonymizePassword($info['message']);
         }
 
-        return new JsonResponse($info);
+        return new JsonResponse($info, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function command(Request $request): JsonResponse
@@ -63,12 +63,12 @@ class IpmiController
         return new JsonResponse([
             'success' => $done,
             'output' => $done ? $ret : implode("\n", $this->debug)
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function sensors(Request $request): JsonResponse
     {
-        return new JsonResponse($this->getSensors($request));
+        return new JsonResponse($this->getSensors($request), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     public function power_on(Request $request): JsonResponse
@@ -133,7 +133,7 @@ class IpmiController
 
         return new JsonResponse([
             'success' => $done
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     private function runCommand($command, $ignoreErrors = false): bool|string
