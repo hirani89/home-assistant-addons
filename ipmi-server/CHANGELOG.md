@@ -1,4 +1,7 @@
 ### 1.2.17
+- docker fix
+  
+### 1.2.17
 - sanitize JSON
 
 ### 1.2.16
