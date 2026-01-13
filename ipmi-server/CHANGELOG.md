@@ -1,3 +1,6 @@
+### 1.2.17
+- sanitize JSON
+
 ### 1.2.16
 - update docker image to ghcr.io/hassio-addons/base:19.0.0
 - php 8.2
