@@ -44,31 +44,44 @@ class IpmiController
             }
         }
 
-        $info['debug'] = implode("\n", $this->debug);
+        $info['debug'] = $this->sanitizeUtf8(implode("\n", $this->debug));
 
         if (array_key_exists('message', $info)) {
-            $info['message'] = $this->anonymizePassword($info['message']);
+            $info['message'] = $this->sanitizeUtf8($this->anonymizePassword($info['message']));
         }
 
-        return new JsonResponse($info, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        return new JsonResponse($info);
     }
 
     public function command(Request $request): JsonResponse
     {
-        $cmd = str_getcsv($request->get('params', ''), ' ', '"', '');
+        $params = $request->get('params', '');
+
+        // Handle null or empty params
+        if ($params === null || trim($params) === '') {
+            return new JsonResponse([
+                'success' => false,
+                'output' => 'No command parameters provided. Use ?params=<ipmitool arguments>'
+            ]);
+        }
+
+        $cmd = str_getcsv($params, ' ', '"', '');
+        // Filter out any null or empty values
+        $cmd = array_filter($cmd, fn($v) => $v !== null && $v !== '');
+        $cmd = array_values($cmd); // Re-index array
         array_unshift($cmd, 'ipmitool');
         $ret = $this->runCommand($cmd);
         $done = ($ret !== false);
 
         return new JsonResponse([
             'success' => $done,
-            'output' => $done ? $ret : implode("\n", $this->debug)
-        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+            'output' => $this->sanitizeUtf8($done ? $ret : implode("\n", $this->debug))
+        ]);
     }
 
     public function sensors(Request $request): JsonResponse
     {
-        return new JsonResponse($this->getSensors($request), 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        return new JsonResponse($this->getSensors($request));
     }
 
     public function power_on(Request $request): JsonResponse
@@ -103,9 +116,37 @@ class IpmiController
         return strtolower(str_replace(' ', '_', $id));
     }
 
-    private function anonymizePassword(string $message): string
+    private function anonymizePassword(?string $message): string
     {
+        if ($message === null) {
+            return '';
+        }
         return empty($this->password) ? $message : str_replace($this->password, '####', $message);
+    }
+
+    /**
+     * Sanitize a string to valid UTF-8, removing or replacing invalid characters.
+     * This is necessary because some IPMI implementations return non-UTF-8 data
+     * (especially in FRU fields), which causes JSON encoding to fail.
+     */
+    private function sanitizeUtf8(?string $input): string
+    {
+        if ($input === null) {
+            return '';
+        }
+
+        // Convert to UTF-8, replacing invalid characters
+        $output = mb_convert_encoding($input, 'UTF-8', 'UTF-8');
+
+        // Remove any remaining invalid UTF-8 sequences
+        $output = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $output);
+
+        // If preg_replace failed (invalid UTF-8), fall back to ASCII-safe version
+        if ($output === null) {
+            $output = preg_replace('/[^\x20-\x7E\n\r\t]/', '', $input);
+        }
+
+        return $output ?? '';
     }
 
     private function runChassisCommand(Request $request, string $type):JsonResponse
@@ -133,12 +174,14 @@ class IpmiController
 
         return new JsonResponse([
             'success' => $done
-        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
+        ]);
     }
 
     private function runCommand($command, $ignoreErrors = false): bool|string
     {
-        $errorIntro = "Error occurred when running \"" . implode(" ", array_map($this->anonymizePassword(...), $command)) . "\".\n" ;
+        // Sanitize command array elements for error messages
+        $sanitizedCommand = array_map(fn($v) => $this->sanitizeUtf8($this->anonymizePassword($v)), $command);
+        $errorIntro = "Error occurred when running \"" . implode(" ", $sanitizedCommand) . "\".\n" ;
 
         try {
             $proc = new Process($command);
@@ -149,7 +192,8 @@ class IpmiController
 
             if ($exitCode) {
                 // let's log this error
-                $message = $this->anonymizePassword($errorIntro .$proc->getErrorOutput());
+                $errorOutput = $this->sanitizeUtf8($proc->getErrorOutput());
+                $message = $this->anonymizePassword($errorIntro . $errorOutput);
                 $this->debug[] = $message;
 
                 if (!$ignoreErrors) {
@@ -158,11 +202,6 @@ class IpmiController
 
                 return false;
             }
-
-            // Sanitize output to handle invalid UTF-8 characters from ipmitool
-            // Some IPMI hardware (especially FRU data) contains invalid UTF-8
-            // This re-encodes the string, dropping invalid sequences
-            $output = mb_convert_encoding($output, 'UTF-8', 'UTF-8');
         }
         catch (\Exception $exception) {
             // let's log this error
@@ -176,7 +215,8 @@ class IpmiController
             return false;
         }
 
-        return $output;
+        // Sanitize output to ensure valid UTF-8 for JSON encoding
+        return $this->sanitizeUtf8($output);
     }
 
     private function getCommand(Request $request): array|bool

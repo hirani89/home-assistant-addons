@@ -37,7 +37,8 @@ RUN apk -U add --no-cache \
     php$PHPVERS-tokenizer \
     php$PHPVERS-opcache \
     php$PHPVERS-iconv \
-    php$PHPVERS-xml
+    php$PHPVERS-xml \
+    php$PHPVERS-mbstring
 
 RUN mkdir -p /app \
     && mkdir -p /app/cache \
@@ -52,8 +53,7 @@ COPY rootfs /
 # Run composer and cleanup afterwards
 COPY --from=composer /usr/bin/composer /usr/bin/composer
 RUN apk -U add --no-cache \
-    php$PHPVERS-phar \
-    php$PHPVERS-mbstring && \
+    php$PHPVERS-phar && \
     php82 /usr/bin/composer --working-dir /app install && \
     apk -U del \
       php$PHPVERS-phar && \
